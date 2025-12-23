@@ -1,114 +1,113 @@
-# iOS ARC Learning Project
+# MVVM-C Pattern with Deep Linking - ARC Version
 
-A hands-on learning project for understanding **Automatic Reference Counting (ARC)** memory management in Objective-C, introduced with iOS 5.
+A complete implementation of the MVVM-C (Model-View-ViewModel-Coordinator) pattern with deep linking support for **ARC (Automatic Reference Counting)** Objective-C projects.
 
-> 💡 **Educational Purpose**: This project demonstrates modern ARC patterns. Compare with the [MRR Learning Project](https://github.com/bengidev/ios_mrr_learning_project) to understand the evolution.
+## Project Structure
 
-## 📚 What You'll Learn
-
-### ARC Fundamentals
-- **Automatic retain/release**: Compiler inserts memory management calls
-- **Strong references**: Default ownership (replaces `retain`)
-- **Weak references**: Non-owning, auto-nils when deallocated
-- **Retain cycles**: How to identify and prevent them
-
-### Property Attributes
-| ARC Attribute | Purpose |
-|---------------|---------|
-| `strong` | Object ownership (default) |
-| `weak` | Non-owning, becomes nil automatically |
-| `copy` | Create owned copy |
-| `assign` | Primitives only |
-| `unsafe_unretained` | Like weak without auto-nil (rare) |
-
-### Key Differences from MRR
-| Aspect | MRR (Manual) | ARC (Automatic) |
-|--------|--------------|-----------------|
-| Memory calls | Manual `retain`/`release` | Compiler-inserted |
-| Dealloc | Required for cleanup | Usually not needed |
-| Weak refs | `assign` (dangerous) | `weak` (safe, auto-nil) |
-| Blocks | Complex memory rules | `__weak` capture |
-
-## 🛠 Project Setup
-
-### Requirements
-- Xcode 15+ (or latest version)
-- macOS Sonoma or later
-- iOS Simulator
-
-### Building
-1. Open `ARC Project.xcodeproj` in Xcode
-2. Select iOS Simulator target
-3. Build and Run (⌘R)
-
-### ARC is Enabled
-This project uses **Objective-C Automatic Reference Counting** (default in modern Xcode).
-
-## 📖 Code Examples
-
-### Property Declaration (ARC)
-```objc
-@interface Person : NSObject
-@property (nonatomic, strong) NSString *name;     // Owns this
-@property (nonatomic, weak) id<PersonDelegate> delegate;  // Safe weak ref
-@property (nonatomic, copy) NSString *bio;        // Owns a copy
-@property (nonatomic, assign) NSInteger age;      // Primitive
-@end
-
-@implementation Person
-// No dealloc needed for most cases!
-// ARC automatically releases properties
-@end
+```
+MVVM-C-ARC/
+├── Protocols/
+│   ├── Coordinator.h          # Base coordinator protocol
+│   └── DeepLinkable.h         # Deep link handling protocol
+├── Routing/
+│   ├── DeepLinkRoute.h/m      # Parsed URL route model
+│   └── URLRouter.h/m          # URL parsing and routing
+├── Coordinators/
+│   ├── BaseCoordinator.h/m    # Base coordinator class
+│   ├── AppCoordinator.h/m     # Root app coordinator
+│   ├── ProductsCoordinator.h/m
+│   └── ProductDetailCoordinator.h/m
+├── ViewModels/
+│   ├── ProductListViewModel.h/m
+│   └── ProductDetailViewModel.h/m
+├── ViewControllers/
+│   ├── ProductListViewController.h/m
+│   └── ProductDetailViewController.h/m
+└── Models/
+    └── Product.h/m
 ```
 
-### Avoiding Retain Cycles
-```objc
-// In blocks - use __weak
-__weak typeof(self) weakSelf = self;
-self.completionHandler = ^{
-    [weakSelf doSomething];  // Safe! No retain cycle
-};
-```
+## Integration
 
-### Dealloc (Only for Non-Memory Cleanup)
+### 1. AppDelegate Setup
+
 ```objc
-- (void)dealloc {
-    [[NSNotificationCenter defaultCenter] removeObserver:self];
-    // NO [super dealloc] in ARC!
-    // NO releasing of properties - ARC handles it
+// AppDelegate.m
+#import "AppCoordinator.h"
+#import "URLRouter.h"
+
+@interface AppDelegate ()
+@property (nonatomic, strong) AppCoordinator *appCoordinator;
+@end
+
+@implementation AppDelegate
+
+- (BOOL)application:(UIApplication *)application 
+    didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+    
+    self.window = [[UIWindow alloc] initWithFrame:UIScreen.mainScreen.bounds];
+    
+    // Initialize and start the app coordinator
+    self.appCoordinator = [[AppCoordinator alloc] initWithWindow:self.window];
+    [self.appCoordinator start];
+    
+    return YES;
 }
+
+// Handle custom URL schemes (e.g., myapp://products/123)
+- (BOOL)application:(UIApplication *)app 
+            openURL:(NSURL *)url 
+            options:(NSDictionary *)options {
+    return [self.appCoordinator handleDeepLinkURL:url];
+}
+
+// Handle Universal Links
+- (BOOL)application:(UIApplication *)application 
+    continueUserActivity:(NSUserActivity *)userActivity 
+      restorationHandler:(void (^)(NSArray *))restorationHandler {
+    return [self.appCoordinator handleUserActivity:userActivity];
+}
+
+@end
 ```
 
-## 📁 Project Structure
+### 2. URL Scheme Configuration
 
+Add to `Info.plist`:
+
+```xml
+<key>CFBundleURLTypes</key>
+<array>
+    <dict>
+        <key>CFBundleURLSchemes</key>
+        <array>
+            <string>myapp</string>
+        </array>
+    </dict>
+</array>
 ```
-ARC Project/
-├── AppDelegate.h/m      # Application lifecycle
-├── ViewController.h/m   # Main view controller
-├── Models/              # Data models with ARC
-├── Services/            # Service classes with delegates
-└── Supporting Files/    # Resources and configuration
+
+## Supported Deep Links
+
+| URL | Action |
+|-----|--------|
+| `myapp://products` | Shows product list |
+| `myapp://products/123` | Shows product with ID 123 |
+| `myapp://products/123/reviews` | Shows reviews for product 123 |
+| `myapp://profile` | Shows user profile |
+| `myapp://settings` | Shows settings |
+| `myapp://cart` | Shows shopping cart |
+
+## Key ARC Memory Management Notes
+
+- **Parent → Child Coordinator**: `strong` reference
+- **Child → Parent Coordinator**: `weak` reference (breaks retain cycle)
+- **ViewModel → Coordinator (delegate)**: `weak` reference
+- **Blocks**: Use `__weak typeof(self) weakSelf = self;` pattern
+
+## Testing Deep Links
+
+```bash
+# From Terminal
+xcrun simctl openurl booted "myapp://products/101/reviews"
 ```
-
-## 🔍 ARC Memory Management Rules
-
-### The Simplified Rules
-1. Use `strong` for objects you own
-2. Use `weak` for delegates and parent references
-3. Use `copy` for immutable value types (NSString, blocks)
-4. Watch for retain cycles in blocks → use `__weak`
-
-### Common Pitfalls
-- ❌ Strong reference cycles between objects
-- ❌ Forgetting `__weak` in block captures
-- ❌ Using `strong` for delegates
-- ✅ Use Instruments to detect leaks
-
-## 📝 License
-
-This project is for educational purposes. Feel free to use and modify for learning.
-
-## 🙏 Acknowledgments
-
-- Apple's ARC documentation
-- Compare with [MRR Learning Project](https://github.com/bengidev/ios_mrr_learning_project)
