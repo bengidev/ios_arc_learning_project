@@ -11,7 +11,10 @@
 #import "ProductService.h"
 #import "ProductServiceProtocol.h"
 #import "ProductsCoordinator.h"
+#import "ProfileCoordinator.h"
 #import "URLRouter.h"
+#import "UserService.h"
+#import "UserServiceProtocol.h"
 #import <os/log.h>
 
 static os_log_t AppCoordinatorLog(void) {
@@ -25,8 +28,10 @@ static os_log_t AppCoordinatorLog(void) {
 
 @interface AppCoordinator ()
 @property(nonatomic, strong) ProductsCoordinator *productsCoordinator;
+@property(nonatomic, strong) ProfileCoordinator *profileCoordinator;
 @property(nonatomic, strong, readwrite) URLRouter *urlRouter;
 @property(nonatomic, strong) id<ProductServiceProtocol> productService;
+@property(nonatomic, strong) id<UserServiceProtocol> userService;
 @end
 
 @implementation AppCoordinator
@@ -37,12 +42,28 @@ static os_log_t AppCoordinatorLog(void) {
   // Use default dependencies for backward compatibility
   return [self initWithWindow:window
                     urlRouter:[URLRouter sharedRouter]
-               productService:[ProductService defaultService]];
+               productService:[ProductService defaultService]
+                  userService:[UserService defaultService]];
 }
 
 - (instancetype)initWithWindow:(UIWindow *)window
                      urlRouter:(URLRouter *)urlRouter
                 productService:(id<ProductServiceProtocol>)productService {
+  return [self initWithWindow:window
+                    urlRouter:urlRouter
+               productService:productService
+                  userService:[UserService defaultService]];
+}
+
+- (instancetype)initWithWindow:(UIWindow *)window
+                     urlRouter:(URLRouter *)urlRouter
+                productService:(id<ProductServiceProtocol>)productService
+                   userService:(id<UserServiceProtocol>)userService {
+  NSParameterAssert(window != nil);
+  NSParameterAssert(urlRouter != nil);
+  NSParameterAssert(productService != nil);
+  NSParameterAssert(userService != nil);
+
   // Create the root navigation controller
   UINavigationController *navController = [[UINavigationController alloc] init];
   navController.navigationBar.prefersLargeTitles = YES;
@@ -53,12 +74,13 @@ static os_log_t AppCoordinatorLog(void) {
     _window.rootViewController = navController;
     _urlRouter = urlRouter;
     _productService = productService;
+    _userService = userService;
 
     // Register with URL Router
     _urlRouter.rootCoordinator = self;
 
     os_log_info(AppCoordinatorLog(),
-                "Initialized with window and dependencies");
+                "Initialized with window and all dependencies");
   }
   return self;
 }
@@ -84,6 +106,24 @@ static os_log_t AppCoordinatorLog(void) {
 
   [self addChildCoordinator:self.productsCoordinator];
   [self.productsCoordinator start];
+}
+
+- (void)showProfileFlow:(nullable NSString *)userId {
+  os_log_info(AppCoordinatorLog(), "Showing profile for user: %{public}@",
+              userId ?: @"current");
+
+  // Remove existing profile coordinator if any
+  if (self.profileCoordinator) {
+    [self removeChildCoordinator:self.profileCoordinator];
+  }
+
+  self.profileCoordinator = [[ProfileCoordinator alloc]
+      initWithNavigationController:self.navigationController
+                            userId:userId
+                       userService:self.userService];
+
+  [self addChildCoordinator:self.profileCoordinator];
+  [self.profileCoordinator start];
 }
 
 #pragma mark - Deep Linking
@@ -146,7 +186,7 @@ static os_log_t AppCoordinatorLog(void) {
     break;
 
   case DeepLinkRouteTypeUserProfile:
-    [self showUserProfile:route.userId];
+    [self showProfileFlow:route.userId];
     break;
 
   case DeepLinkRouteTypeSettings:
@@ -168,34 +208,15 @@ static os_log_t AppCoordinatorLog(void) {
   // Pop to root view controller to ensure clean navigation state
   [self.navigationController popToRootViewControllerAnimated:NO];
 
-  // Remove child coordinators from products coordinator
+  // Remove child coordinators (except products which is always present)
+  if (self.profileCoordinator) {
+    [self removeChildCoordinator:self.profileCoordinator];
+    self.profileCoordinator = nil;
+  }
   [self.productsCoordinator removeAllChildCoordinators];
 }
 
 #pragma mark - Additional Navigation (Placeholder)
-
-- (void)showUserProfile:(nullable NSString *)userId {
-  os_log_info(AppCoordinatorLog(), "Show user profile: %{public}@",
-              userId ?: @"current user");
-
-  // Placeholder - would create a ProfileCoordinator
-  UIViewController *profileVC = [[UIViewController alloc] init];
-  profileVC.view.backgroundColor = [UIColor systemBackgroundColor];
-  profileVC.title = @"User Profile";
-
-  UILabel *label = [[UILabel alloc] init];
-  label.text =
-      [NSString stringWithFormat:@"User: %@", userId ?: @"Current User"];
-  label.translatesAutoresizingMaskIntoConstraints = NO;
-  [profileVC.view addSubview:label];
-
-  [NSLayoutConstraint activateConstraints:@[
-    [label.centerXAnchor constraintEqualToAnchor:profileVC.view.centerXAnchor],
-    [label.centerYAnchor constraintEqualToAnchor:profileVC.view.centerYAnchor]
-  ]];
-
-  [self.navigationController pushViewController:profileVC animated:YES];
-}
 
 - (void)showSettings {
   os_log_info(AppCoordinatorLog(), "Show settings");
@@ -204,6 +225,20 @@ static os_log_t AppCoordinatorLog(void) {
   UIViewController *settingsVC = [[UIViewController alloc] init];
   settingsVC.view.backgroundColor = [UIColor systemBackgroundColor];
   settingsVC.title = @"Settings";
+
+  UILabel *label = [[UILabel alloc] init];
+  label.text = @"Settings\n(Coming Soon)";
+  label.numberOfLines = 0;
+  label.textAlignment = NSTextAlignmentCenter;
+  label.font = [UIFont systemFontOfSize:20];
+  label.translatesAutoresizingMaskIntoConstraints = NO;
+  [settingsVC.view addSubview:label];
+
+  [NSLayoutConstraint activateConstraints:@[
+    [label.centerXAnchor constraintEqualToAnchor:settingsVC.view.centerXAnchor],
+    [label.centerYAnchor constraintEqualToAnchor:settingsVC.view.centerYAnchor]
+  ]];
+
   [self.navigationController pushViewController:settingsVC animated:YES];
 }
 
@@ -214,6 +249,20 @@ static os_log_t AppCoordinatorLog(void) {
   UIViewController *cartVC = [[UIViewController alloc] init];
   cartVC.view.backgroundColor = [UIColor systemBackgroundColor];
   cartVC.title = @"Shopping Cart";
+
+  UILabel *label = [[UILabel alloc] init];
+  label.text = @"Shopping Cart\n(Coming Soon)";
+  label.numberOfLines = 0;
+  label.textAlignment = NSTextAlignmentCenter;
+  label.font = [UIFont systemFontOfSize:20];
+  label.translatesAutoresizingMaskIntoConstraints = NO;
+  [cartVC.view addSubview:label];
+
+  [NSLayoutConstraint activateConstraints:@[
+    [label.centerXAnchor constraintEqualToAnchor:cartVC.view.centerXAnchor],
+    [label.centerYAnchor constraintEqualToAnchor:cartVC.view.centerYAnchor]
+  ]];
+
   [self.navigationController pushViewController:cartVC animated:YES];
 }
 

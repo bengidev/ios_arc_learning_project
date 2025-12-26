@@ -5,7 +5,7 @@ A complete implementation of the MVVM-C (Model-View-ViewModel-Coordinator) patte
 ## ✨ Features
 
 - **Dependency Injection** - All components accept injected dependencies for testability
-- **Protocol-Based Design** - `ProductServiceProtocol`, `Coordinator`, `DeepLinkable`
+- **Protocol-Based Design** - `ProductServiceProtocol`, `UserServiceProtocol`, `Coordinator`, `DeepLinkable`
 - **Deep Linking** - Custom URL schemes and Universal Links support
 - **Modern Logging** - Uses `os_log` for efficient, privacy-aware logging
 - **Accessibility** - Full VoiceOver support with accessibility identifiers
@@ -21,11 +21,11 @@ A complete implementation of the MVVM-C (Model-View-ViewModel-Coordinator) patte
 │                    │ AppCoordinator │◄──── URLRouter             │
 │                    └───────┬───────┘                             │
 │                            │                                     │
-│              ┌─────────────┴─────────────┐                       │
-│              │                           │                       │
-│     ┌────────▼────────┐         ┌────────▼────────┐              │
-│     │ProductsCoordinator│       │ ProfileCoordinator│            │
-│     └────────┬────────┘         └─────────────────┘              │
+│              ┌─────────────┼─────────────┐                       │
+│              │             │             │                       │
+│     ┌────────▼────────┐  ┌─▼──────────┐ ┌▼─────────────┐         │
+│     │ProductsCoordinator│ │ProfileCoord│ │SettingsCoord│         │
+│     └────────┬────────┘  └────────────┘ └──────────────┘         │
 │              │                                                   │
 │     ┌────────▼────────┐                                          │
 │     │ProductDetailCoord│                                         │
@@ -40,15 +40,15 @@ MVVM-C-ARC/
 ├── Protocols/
 │   ├── Coordinator.h          # Base coordinator protocol
 │   └── DeepLinkable.h         # Deep link handling protocol
-├── Services/                   # NEW: Service layer
+├── Services/
 │   ├── ProductServiceProtocol.h
-│   ├── ProductService.h
-│   └── ProductService.m
-├── Constants/                  # NEW: Design system
+│   ├── ProductService.h/m
+│   ├── UserServiceProtocol.h   # NEW
+│   └── UserService.h/m         # NEW
+├── Constants/
 │   └── DesignConstants.h
-├── TestSupport/                # NEW: Test fixtures
-│   ├── ProductTestFixtures.h
-│   └── ProductTestFixtures.m
+├── TestSupport/
+│   ├── ProductTestFixtures.h/m
 ├── Routing/
 │   ├── DeepLinkRoute.h/m
 │   └── URLRouter.h/m
@@ -56,15 +56,19 @@ MVVM-C-ARC/
 │   ├── BaseCoordinator.h/m
 │   ├── AppCoordinator.h/m
 │   ├── ProductsCoordinator.h/m
-│   └── ProductDetailCoordinator.h/m
+│   ├── ProductDetailCoordinator.h/m
+│   └── ProfileCoordinator.h/m  # NEW
 ├── ViewModels/
 │   ├── ProductListViewModel.h/m
-│   └── ProductDetailViewModel.h/m
+│   ├── ProductDetailViewModel.h/m
+│   └── ProfileViewModel.h/m    # NEW
 ├── ViewControllers/
 │   ├── ProductListViewController.h/m
-│   └── ProductDetailViewController.h/m
+│   ├── ProductDetailViewController.h/m
+│   └── ProfileViewController.h/m # NEW
 └── Models/
-    └── Product.h/m
+    ├── Product.h/m
+    └── User.h/m                # NEW
 ```
 
 ## 🔧 Dependency Injection
@@ -87,7 +91,8 @@ ProductListViewModel *viewModel = [[ProductListViewModel alloc]
 AppCoordinator *coordinator = [[AppCoordinator alloc] 
     initWithWindow:window
          urlRouter:[[URLRouter alloc] initWithScheme:@"myapp"]
-    productService:[ProductService defaultService]];
+    productService:[ProductService defaultService]
+       userService:[UserService defaultService]];
 ```
 
 ### Testing with Mocks
@@ -111,13 +116,15 @@ ProductListViewModel *viewModel = [[ProductListViewModel alloc]
 | `myapp://products` | Product list |
 | `myapp://products/123` | Product detail |
 | `myapp://products/123/reviews` | Product reviews |
-| `myapp://profile` | User profile |
+| `myapp://profile` | User profile (current user) |
+| `myapp://profile/user_001` | User profile (specific user) |
 | `myapp://settings` | Settings |
 | `myapp://cart` | Shopping cart |
 
 ### Testing Deep Links
 
 ```bash
+xcrun simctl openurl booted "myapp://profile"
 xcrun simctl openurl booted "myapp://products/101/reviews"
 ```
 
@@ -157,6 +164,12 @@ classDiagram
         +fetchProductWithId()
     }
     
+    class UserServiceProtocol {
+        <<protocol>>
+        +fetchCurrentUserWithCompletion()
+        +fetchUserWithId()
+    }
+    
     class BaseCoordinator {
         +addChildCoordinator()
         +removeChildCoordinator()
@@ -165,12 +178,19 @@ classDiagram
     
     class AppCoordinator {
         +urlRouter
+        +productService
+        +userService
         +handleDeepLinkURL()
     }
     
     class ProductsCoordinator {
         +productService
         +showProductDetail()
+    }
+    
+    class ProfileCoordinator {
+        +userService
+        +userId
     }
     
     class ProductListViewModel {
@@ -180,12 +200,23 @@ classDiagram
         +loadProducts()
     }
     
+    class ProfileViewModel {
+        +userService
+        +delegate
+        +onError
+        +loadProfile()
+    }
+    
     Coordinator <|.. BaseCoordinator
     DeepLinkable <|.. AppCoordinator
+    DeepLinkable <|.. ProfileCoordinator
     BaseCoordinator <|-- AppCoordinator
     BaseCoordinator <|-- ProductsCoordinator
+    BaseCoordinator <|-- ProfileCoordinator
     ProductServiceProtocol <|.. ProductService
+    UserServiceProtocol <|.. UserService
     ProductListViewModel --> ProductServiceProtocol
+    ProfileViewModel --> UserServiceProtocol
 ```
 
 ## 🧪 Memory Management

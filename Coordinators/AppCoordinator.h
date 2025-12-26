@@ -11,6 +11,7 @@
 
 @class URLRouter;
 @protocol ProductServiceProtocol;
+@protocol UserServiceProtocol;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -24,7 +25,17 @@ NS_ASSUME_NONNULL_BEGIN
 
 #pragma mark - Initialization
 
-/// Initialize with window and injected dependencies (preferred)
+/// Initialize with all dependencies (preferred for full DI)
+/// @param window The app's main window
+/// @param urlRouter The URL router for deep linking
+/// @param productService The service for fetching products
+/// @param userService The service for fetching user data
+- (instancetype)initWithWindow:(UIWindow *)window
+                     urlRouter:(URLRouter *)urlRouter
+                productService:(id<ProductServiceProtocol>)productService
+                   userService:(id<UserServiceProtocol>)userService;
+
+/// Initialize with window and basic dependencies
 /// @param window The app's main window
 /// @param urlRouter The URL router for deep linking
 /// @param productService The service for fetching products
