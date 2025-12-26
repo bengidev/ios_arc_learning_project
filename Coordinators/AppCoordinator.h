@@ -9,6 +9,9 @@
 #import "BaseCoordinator.h"
 #import "DeepLinkable.h"
 
+@class URLRouter;
+@protocol ProductServiceProtocol;
+
 NS_ASSUME_NONNULL_BEGIN
 
 @interface AppCoordinator : BaseCoordinator <DeepLinkable>
@@ -16,7 +19,21 @@ NS_ASSUME_NONNULL_BEGIN
 /// The app's main window
 @property(nonatomic, strong) UIWindow *window;
 
-/// Initialize with the app's window
+/// The URL router for handling deep links
+@property(nonatomic, strong, readonly) URLRouter *urlRouter;
+
+#pragma mark - Initialization
+
+/// Initialize with window and injected dependencies (preferred)
+/// @param window The app's main window
+/// @param urlRouter The URL router for deep linking
+/// @param productService The service for fetching products
+- (instancetype)initWithWindow:(UIWindow *)window
+                     urlRouter:(URLRouter *)urlRouter
+                productService:(id<ProductServiceProtocol>)productService;
+
+/// Initialize with the app's window (uses default dependencies)
+/// Provided for backward compatibility
 - (instancetype)initWithWindow:(UIWindow *)window;
 
 #pragma mark - Deep Linking

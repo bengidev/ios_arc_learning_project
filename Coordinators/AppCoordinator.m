@@ -8,11 +8,25 @@
 
 #import "AppCoordinator.h"
 #import "DeepLinkRoute.h"
+#import "ProductService.h"
+#import "ProductServiceProtocol.h"
 #import "ProductsCoordinator.h"
 #import "URLRouter.h"
+#import <os/log.h>
+
+static os_log_t AppCoordinatorLog(void) {
+  static os_log_t log = nil;
+  static dispatch_once_t onceToken;
+  dispatch_once(&onceToken, ^{
+    log = os_log_create("com.bengidev.mvvmc", "AppCoordinator");
+  });
+  return log;
+}
 
 @interface AppCoordinator ()
 @property(nonatomic, strong) ProductsCoordinator *productsCoordinator;
+@property(nonatomic, strong, readwrite) URLRouter *urlRouter;
+@property(nonatomic, strong) id<ProductServiceProtocol> productService;
 @end
 
 @implementation AppCoordinator
@@ -20,6 +34,15 @@
 #pragma mark - Initialization
 
 - (instancetype)initWithWindow:(UIWindow *)window {
+  // Use default dependencies for backward compatibility
+  return [self initWithWindow:window
+                    urlRouter:[URLRouter sharedRouter]
+               productService:[ProductService defaultService]];
+}
+
+- (instancetype)initWithWindow:(UIWindow *)window
+                     urlRouter:(URLRouter *)urlRouter
+                productService:(id<ProductServiceProtocol>)productService {
   // Create the root navigation controller
   UINavigationController *navController = [[UINavigationController alloc] init];
   navController.navigationBar.prefersLargeTitles = YES;
@@ -28,9 +51,14 @@
   if (self) {
     _window = window;
     _window.rootViewController = navController;
+    _urlRouter = urlRouter;
+    _productService = productService;
 
     // Register with URL Router
-    [URLRouter sharedRouter].rootCoordinator = self;
+    _urlRouter.rootCoordinator = self;
+
+    os_log_info(AppCoordinatorLog(),
+                "Initialized with window and dependencies");
   }
   return self;
 }
@@ -38,7 +66,7 @@
 #pragma mark - Lifecycle
 
 - (void)start {
-  NSLog(@"[AppCoordinator] Starting app flow");
+  os_log_info(AppCoordinatorLog(), "Starting app flow");
 
   // Make window visible
   [self.window makeKeyAndVisible];
@@ -51,7 +79,8 @@
 
 - (void)showProductsFlow {
   self.productsCoordinator = [[ProductsCoordinator alloc]
-      initWithNavigationController:self.navigationController];
+      initWithNavigationController:self.navigationController
+                    productService:self.productService];
 
   [self addChildCoordinator:self.productsCoordinator];
   [self.productsCoordinator start];
@@ -60,13 +89,15 @@
 #pragma mark - Deep Linking
 
 - (BOOL)handleDeepLinkURL:(NSURL *)url {
-  NSLog(@"[AppCoordinator] Handling deep link: %@", url);
+  os_log_info(AppCoordinatorLog(), "Handling deep link: %{public}@",
+              url.absoluteString);
 
   // Parse the URL into a route
-  DeepLinkRoute *route = [[URLRouter sharedRouter] parseURL:url];
+  DeepLinkRoute *route = [self.urlRouter parseURL:url];
 
   if (!route) {
-    NSLog(@"[AppCoordinator] Could not parse URL: %@", url);
+    os_log_error(AppCoordinatorLog(), "Could not parse URL: %{public}@",
+                 url.absoluteString);
     return NO;
   }
 
@@ -94,7 +125,8 @@
 }
 
 - (void)handleRoute:(DeepLinkRoute *)route {
-  NSLog(@"[AppCoordinator] Handling route: %@", route);
+  os_log_info(AppCoordinatorLog(), "Handling route: %{public}@",
+              [route routeTypeString]);
 
   // Reset navigation to root if needed for deep links
   [self resetNavigationForDeepLink];
@@ -126,7 +158,8 @@
     break;
 
   default:
-    NSLog(@"[AppCoordinator] Unknown route type: %ld", (long)route.type);
+    os_log_error(AppCoordinatorLog(), "Unknown route type: %ld",
+                 (long)route.type);
     break;
   }
 }
@@ -142,7 +175,8 @@
 #pragma mark - Additional Navigation (Placeholder)
 
 - (void)showUserProfile:(nullable NSString *)userId {
-  NSLog(@"[AppCoordinator] Show user profile: %@", userId ?: @"current user");
+  os_log_info(AppCoordinatorLog(), "Show user profile: %{public}@",
+              userId ?: @"current user");
 
   // Placeholder - would create a ProfileCoordinator
   UIViewController *profileVC = [[UIViewController alloc] init];
@@ -164,7 +198,7 @@
 }
 
 - (void)showSettings {
-  NSLog(@"[AppCoordinator] Show settings");
+  os_log_info(AppCoordinatorLog(), "Show settings");
 
   // Placeholder - would create a SettingsCoordinator
   UIViewController *settingsVC = [[UIViewController alloc] init];
@@ -174,7 +208,7 @@
 }
 
 - (void)showCart {
-  NSLog(@"[AppCoordinator] Show cart");
+  os_log_info(AppCoordinatorLog(), "Show cart");
 
   // Placeholder - would create a CartCoordinator
   UIViewController *cartVC = [[UIViewController alloc] init];
@@ -186,7 +220,7 @@
 #pragma mark - Debug
 
 - (void)dealloc {
-  NSLog(@"[AppCoordinator] dealloc");
+  os_log_debug(AppCoordinatorLog(), "dealloc");
 }
 
 @end

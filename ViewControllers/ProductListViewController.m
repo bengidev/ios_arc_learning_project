@@ -7,10 +7,21 @@
 //
 
 #import "ProductListViewController.h"
+#import "DesignConstants.h"
 #import "Product.h"
 #import "ProductListViewModel.h"
+#import <os/log.h>
 
 static NSString *const kProductCellIdentifier = @"ProductCell";
+
+static os_log_t ProductListViewControllerLog(void) {
+  static os_log_t log = nil;
+  static dispatch_once_t onceToken;
+  dispatch_once(&onceToken, ^{
+    log = os_log_create("com.bengidev.mvvmc", "ProductListViewController");
+  });
+  return log;
+}
 
 @interface ProductListViewController () <UITableViewDataSource,
                                          UITableViewDelegate>
@@ -37,6 +48,7 @@ static NSString *const kProductCellIdentifier = @"ProductCell";
   [super viewDidLoad];
 
   [self setupUI];
+  [self setupAccessibility];
   [self setupBindings];
   [self.viewModel loadProducts];
 }
@@ -73,6 +85,12 @@ static NSString *const kProductCellIdentifier = @"ProductCell";
   [self.view addSubview:self.loadingIndicator];
 }
 
+- (void)setupAccessibility {
+  self.tableView.accessibilityIdentifier = kAccessibilityProductListTableView;
+  self.refreshControl.accessibilityIdentifier = kAccessibilityRefreshControl;
+  self.tableView.accessibilityLabel = @"Products list";
+}
+
 - (void)setupBindings {
   // Using weak self to avoid retain cycles in blocks
   __weak typeof(self) weakSelf = self;
@@ -85,6 +103,28 @@ static NSString *const kProductCellIdentifier = @"ProductCell";
     [strongSelf.refreshControl endRefreshing];
     [strongSelf.loadingIndicator stopAnimating];
     [strongSelf.tableView reloadData];
+
+    os_log_info(ProductListViewControllerLog(), "Refresh complete, success: %d",
+                success);
+  };
+
+  self.viewModel.onError = ^(NSError *error) {
+    __strong typeof(weakSelf) strongSelf = weakSelf;
+    if (!strongSelf)
+      return;
+
+    os_log_error(ProductListViewControllerLog(), "Error: %{public}@",
+                 error.localizedDescription);
+
+    // Show error alert
+    UIAlertController *alert = [UIAlertController
+        alertControllerWithTitle:@"Error"
+                         message:error.localizedDescription
+                  preferredStyle:UIAlertControllerStyleAlert];
+    [alert addAction:[UIAlertAction actionWithTitle:@"OK"
+                                              style:UIAlertActionStyleDefault
+                                            handler:nil]];
+    [strongSelf presentViewController:alert animated:YES completion:nil];
   };
 }
 
@@ -113,11 +153,18 @@ static NSString *const kProductCellIdentifier = @"ProductCell";
       [UIListContentConfiguration subtitleCellConfiguration];
   config.text = product.name;
   config.secondaryText = [NSString
-      stringWithFormat:@"$%.2f • %@ ★", product.price, @(product.rating)];
+      stringWithFormat:@"$%.2f • %.1f ★", product.price, product.rating];
   config.secondaryTextProperties.color = [UIColor secondaryLabelColor];
 
   cell.contentConfiguration = config;
   cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
+
+  // Accessibility
+  cell.accessibilityIdentifier = [NSString
+      stringWithFormat:@"%@_%@", kAccessibilityProductCell, product.productId];
+  cell.accessibilityLabel =
+      [NSString stringWithFormat:@"%@, $%.2f, %.1f stars", product.name,
+                                 product.price, product.rating];
 
   return cell;
 }
@@ -133,7 +180,7 @@ static NSString *const kProductCellIdentifier = @"ProductCell";
 #pragma mark - Debug
 
 - (void)dealloc {
-  NSLog(@"[ProductListViewController] dealloc");
+  os_log_debug(ProductListViewControllerLog(), "dealloc");
 }
 
 @end

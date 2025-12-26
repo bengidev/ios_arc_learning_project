@@ -10,6 +10,7 @@
 
 @class Product;
 @class ProductListViewModel;
+@protocol ProductServiceProtocol;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -50,6 +51,20 @@ NS_ASSUME_NONNULL_BEGIN
 
 /// Called when refresh completes
 @property(nonatomic, copy, nullable) void (^onRefreshComplete)(BOOL success);
+
+/// Called when an error occurs
+@property(nonatomic, copy, nullable) void (^onError)(NSError *error);
+
+#pragma mark - Initialization
+
+/// Initializes with a product service (preferred for testability)
+/// @param productService The service to fetch products from
+- (instancetype)initWithProductService:
+    (id<ProductServiceProtocol>)productService;
+
+/// Initializes with default product service
+/// Provided for backward compatibility
+- (instancetype)init;
 
 #pragma mark - Data Access
 

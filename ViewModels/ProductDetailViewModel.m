@@ -8,6 +8,16 @@
 
 #import "ProductDetailViewModel.h"
 #import "Product.h"
+#import <os/log.h>
+
+static os_log_t ProductDetailViewModelLog(void) {
+  static os_log_t log = nil;
+  static dispatch_once_t onceToken;
+  dispatch_once(&onceToken, ^{
+    log = os_log_create("com.bengidev.mvvmc", "ProductDetailViewModel");
+  });
+  return log;
+}
 
 @interface ProductDetailViewModel ()
 @property(nonatomic, strong, readwrite) Product *product;
@@ -61,8 +71,8 @@
 #pragma mark - Actions
 
 - (void)showReviews {
-  NSLog(@"[ProductDetailViewModel] Show reviews requested for: %@",
-        self.product.productId);
+  os_log_info(ProductDetailViewModelLog(),
+              "Show reviews requested for: %{public}@", self.product.productId);
 
   // Notify via delegate
   if ([self.delegate
@@ -77,8 +87,8 @@
 }
 
 - (void)addToCart {
-  NSLog(@"[ProductDetailViewModel] Add to cart requested for: %@",
-        self.product.productId);
+  os_log_info(ProductDetailViewModelLog(),
+              "Add to cart requested for: %{public}@", self.product.productId);
 
   // Notify via delegate
   if ([self.delegate
@@ -93,7 +103,7 @@
 }
 
 - (void)dismiss {
-  NSLog(@"[ProductDetailViewModel] Dismiss requested");
+  os_log_info(ProductDetailViewModelLog(), "Dismiss requested");
 
   // Notify via delegate
   if ([self.delegate
@@ -110,8 +120,8 @@
 #pragma mark - Debug
 
 - (void)dealloc {
-  NSLog(@"[ProductDetailViewModel] dealloc - product: %@",
-        self.product.productId);
+  os_log_debug(ProductDetailViewModelLog(), "dealloc - product: %{public}@",
+               self.product.productId);
 }
 
 @end

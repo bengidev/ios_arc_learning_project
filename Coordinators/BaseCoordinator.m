@@ -7,6 +7,16 @@
 //
 
 #import "BaseCoordinator.h"
+#import <os/log.h>
+
+static os_log_t BaseCoordinatorLog(void) {
+  static os_log_t log = nil;
+  static dispatch_once_t onceToken;
+  dispatch_once(&onceToken, ^{
+    log = os_log_create("com.bengidev.mvvmc", "BaseCoordinator");
+  });
+  return log;
+}
 
 @implementation BaseCoordinator
 
@@ -40,8 +50,9 @@
       coordinator.parentCoordinator = self;
     }
 
-    NSLog(@"[%@] Added child coordinator: %@", NSStringFromClass([self class]),
-          NSStringFromClass([coordinator class]));
+    os_log_debug(BaseCoordinatorLog(), "[%{public}@] Added child: %{public}@",
+                 NSStringFromClass([self class]),
+                 NSStringFromClass([coordinator class]));
   }
 }
 
@@ -54,9 +65,9 @@
 
     [self.childCoordinators removeObject:coordinator];
 
-    NSLog(@"[%@] Removed child coordinator: %@",
-          NSStringFromClass([self class]),
-          NSStringFromClass([coordinator class]));
+    os_log_debug(BaseCoordinatorLog(), "[%{public}@] Removed child: %{public}@",
+                 NSStringFromClass([self class]),
+                 NSStringFromClass([coordinator class]));
   }
 }
 
@@ -90,7 +101,8 @@
 #pragma mark - Debug
 
 - (void)dealloc {
-  NSLog(@"[%@] dealloc", NSStringFromClass([self class]));
+  os_log_debug(BaseCoordinatorLog(), "[%{public}@] dealloc",
+               NSStringFromClass([self class]));
 }
 
 @end

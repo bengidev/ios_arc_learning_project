@@ -2,7 +2,8 @@
 //  URLRouter.h
 //  MVVM-C-ARC
 //
-//  URLRouter - Singleton router for handling and parsing deep link URLs
+//  URLRouter - Router for handling and parsing deep link URLs
+//  Now supports both singleton and injectable patterns
 //  ARC Version
 //
 
@@ -18,8 +19,13 @@ typedef void (^URLRouterCompletionBlock)(BOOL success);
 
 @interface URLRouter : NSObject
 
-/// Shared singleton instance
+/// Shared singleton instance (for backward compatibility)
+/// Prefer using initWithScheme: for new code to enable testing
 + (instancetype)sharedRouter;
+
+/// Creates a new router with a custom URL scheme
+/// @param scheme The URL scheme to handle (e.g., "myapp")
+- (instancetype)initWithScheme:(NSString *)scheme;
 
 /// The root coordinator that will handle routes
 @property(nonatomic, weak, nullable) id<Coordinator> rootCoordinator;

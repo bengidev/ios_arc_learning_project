@@ -1,20 +1,60 @@
 # MVVM-C Pattern with Deep Linking - ARC Version
 
-A complete implementation of the MVVM-C (Model-View-ViewModel-Coordinator) pattern with deep linking support for **ARC (Automatic Reference Counting)** Objective-C projects.
+A complete implementation of the MVVM-C (Model-View-ViewModel-Coordinator) pattern with deep linking support for ARC (Automatic Reference Counting) Objective-C projects.
 
-## Project Structure
+## ✨ Features
+
+- **Dependency Injection** - All components accept injected dependencies for testability
+- **Protocol-Based Design** - `ProductServiceProtocol`, `Coordinator`, `DeepLinkable`
+- **Deep Linking** - Custom URL schemes and Universal Links support
+- **Modern Logging** - Uses `os_log` for efficient, privacy-aware logging
+- **Accessibility** - Full VoiceOver support with accessibility identifiers
+- **Design System** - Centralized constants for consistent UI
+
+## 🏗️ Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        AppDelegate                               │
+│                            │                                     │
+│                    ┌───────▼───────┐                             │
+│                    │ AppCoordinator │◄──── URLRouter             │
+│                    └───────┬───────┘                             │
+│                            │                                     │
+│              ┌─────────────┴─────────────┐                       │
+│              │                           │                       │
+│     ┌────────▼────────┐         ┌────────▼────────┐              │
+│     │ProductsCoordinator│       │ ProfileCoordinator│            │
+│     └────────┬────────┘         └─────────────────┘              │
+│              │                                                   │
+│     ┌────────▼────────┐                                          │
+│     │ProductDetailCoord│                                         │
+│     └─────────────────┘                                          │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## 📁 Project Structure
 
 ```
 MVVM-C-ARC/
 ├── Protocols/
 │   ├── Coordinator.h          # Base coordinator protocol
 │   └── DeepLinkable.h         # Deep link handling protocol
+├── Services/                   # NEW: Service layer
+│   ├── ProductServiceProtocol.h
+│   ├── ProductService.h
+│   └── ProductService.m
+├── Constants/                  # NEW: Design system
+│   └── DesignConstants.h
+├── TestSupport/                # NEW: Test fixtures
+│   ├── ProductTestFixtures.h
+│   └── ProductTestFixtures.m
 ├── Routing/
-│   ├── DeepLinkRoute.h/m      # Parsed URL route model
-│   └── URLRouter.h/m          # URL parsing and routing
+│   ├── DeepLinkRoute.h/m
+│   └── URLRouter.h/m
 ├── Coordinators/
-│   ├── BaseCoordinator.h/m    # Base coordinator class
-│   ├── AppCoordinator.h/m     # Root app coordinator
+│   ├── BaseCoordinator.h/m
+│   ├── AppCoordinator.h/m
 │   ├── ProductsCoordinator.h/m
 │   └── ProductDetailCoordinator.h/m
 ├── ViewModels/
@@ -27,87 +67,153 @@ MVVM-C-ARC/
     └── Product.h/m
 ```
 
-## Integration
+## 🔧 Dependency Injection
 
-### 1. AppDelegate Setup
+### ViewModel Injection
 
 ```objc
-// AppDelegate.m
-#import "AppCoordinator.h"
-#import "URLRouter.h"
+// Create service
+id<ProductServiceProtocol> productService = [ProductService defaultService];
 
-@interface AppDelegate ()
-@property (nonatomic, strong) AppCoordinator *appCoordinator;
-@end
-
-@implementation AppDelegate
-
-- (BOOL)application:(UIApplication *)application 
-    didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
-    
-    self.window = [[UIWindow alloc] initWithFrame:UIScreen.mainScreen.bounds];
-    
-    // Initialize and start the app coordinator
-    self.appCoordinator = [[AppCoordinator alloc] initWithWindow:self.window];
-    [self.appCoordinator start];
-    
-    return YES;
-}
-
-// Handle custom URL schemes (e.g., myapp://products/123)
-- (BOOL)application:(UIApplication *)app 
-            openURL:(NSURL *)url 
-            options:(NSDictionary *)options {
-    return [self.appCoordinator handleDeepLinkURL:url];
-}
-
-// Handle Universal Links
-- (BOOL)application:(UIApplication *)application 
-    continueUserActivity:(NSUserActivity *)userActivity 
-      restorationHandler:(void (^)(NSArray *))restorationHandler {
-    return [self.appCoordinator handleUserActivity:userActivity];
-}
-
-@end
+// Inject into ViewModel
+ProductListViewModel *viewModel = [[ProductListViewModel alloc] 
+    initWithProductService:productService];
 ```
 
-### 2. URL Scheme Configuration
+### Coordinator Injection
 
-Add to `Info.plist`:
-
-```xml
-<key>CFBundleURLTypes</key>
-<array>
-    <dict>
-        <key>CFBundleURLSchemes</key>
-        <array>
-            <string>myapp</string>
-        </array>
-    </dict>
-</array>
+```objc
+// Full DI setup
+AppCoordinator *coordinator = [[AppCoordinator alloc] 
+    initWithWindow:window
+         urlRouter:[[URLRouter alloc] initWithScheme:@"myapp"]
+    productService:[ProductService defaultService]];
 ```
 
-## Supported Deep Links
+### Testing with Mocks
 
-| URL | Action |
-|-----|--------|
-| `myapp://products` | Shows product list |
-| `myapp://products/123` | Shows product with ID 123 |
-| `myapp://products/123/reviews` | Shows reviews for product 123 |
-| `myapp://profile` | Shows user profile |
-| `myapp://settings` | Shows settings |
-| `myapp://cart` | Shows shopping cart |
+```objc
+// Create mock service
+MockProductService *mockService = [[MockProductService alloc] init];
+mockService.mockProducts = @[testProduct];
 
-## Key ARC Memory Management Notes
+// Inject mock
+ProductListViewModel *viewModel = [[ProductListViewModel alloc] 
+    initWithProductService:mockService];
+```
 
-- **Parent → Child Coordinator**: `strong` reference
-- **Child → Parent Coordinator**: `weak` reference (breaks retain cycle)
-- **ViewModel → Coordinator (delegate)**: `weak` reference
-- **Blocks**: Use `__weak typeof(self) weakSelf = self;` pattern
+## 🔗 Deep Linking
 
-## Testing Deep Links
+### Supported URLs
+
+| URL | Description |
+|-----|-------------|
+| `myapp://products` | Product list |
+| `myapp://products/123` | Product detail |
+| `myapp://products/123/reviews` | Product reviews |
+| `myapp://profile` | User profile |
+| `myapp://settings` | Settings |
+| `myapp://cart` | Shopping cart |
+
+### Testing Deep Links
 
 ```bash
-# From Terminal
 xcrun simctl openurl booted "myapp://products/101/reviews"
 ```
+
+## 🎨 Design Constants
+
+```objc
+#import "DesignConstants.h"
+
+// Layout
+view.layer.cornerRadius = kCornerRadiusLarge;  // 10.0
+stackView.spacing = kPaddingMedium;             // 16.0
+
+// Accessibility
+button.accessibilityIdentifier = kAccessibilityAddToCartButton;
+```
+
+## 📊 Class Diagram
+
+```mermaid
+classDiagram
+    class Coordinator {
+        <<protocol>>
+        +childCoordinators
+        +navigationController
+        +start()
+    }
+    
+    class DeepLinkable {
+        <<protocol>>
+        +canHandleRoute()
+        +handleRoute()
+    }
+    
+    class ProductServiceProtocol {
+        <<protocol>>
+        +fetchProductsWithCompletion()
+        +fetchProductWithId()
+    }
+    
+    class BaseCoordinator {
+        +addChildCoordinator()
+        +removeChildCoordinator()
+        +finish()
+    }
+    
+    class AppCoordinator {
+        +urlRouter
+        +handleDeepLinkURL()
+    }
+    
+    class ProductsCoordinator {
+        +productService
+        +showProductDetail()
+    }
+    
+    class ProductListViewModel {
+        +productService
+        +delegate
+        +onError
+        +loadProducts()
+    }
+    
+    Coordinator <|.. BaseCoordinator
+    DeepLinkable <|.. AppCoordinator
+    BaseCoordinator <|-- AppCoordinator
+    BaseCoordinator <|-- ProductsCoordinator
+    ProductServiceProtocol <|.. ProductService
+    ProductListViewModel --> ProductServiceProtocol
+```
+
+## 🧪 Memory Management
+
+| Relationship | Reference Type | Reason |
+|--------------|----------------|--------|
+| Parent → Child Coordinator | `strong` | Parent owns children |
+| Child → Parent Coordinator | `weak` | Breaks retain cycle |
+| ViewModel → Delegate | `weak` | Coordinator owns ViewModel |
+| ViewController → ViewModel | `strong` | VC needs ViewModel |
+
+## 📝 Logging
+
+Uses `os_log` for efficient, privacy-aware logging:
+
+```objc
+os_log_info(log, "Loaded %lu products", (unsigned long)count);
+os_log_error(log, "Error: %{public}@", error.localizedDescription);
+```
+
+View logs in Console.app with subsystem filter: `com.bengidev.mvvmc`
+
+## 📱 Requirements
+
+- iOS 12.0+
+- Xcode 15.0+
+- Objective-C with ARC
+
+## 📄 License
+
+Educational purposes - MIT License

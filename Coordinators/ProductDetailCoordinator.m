@@ -8,9 +8,20 @@
 
 #import "ProductDetailCoordinator.h"
 #import "DeepLinkRoute.h"
+#import "DesignConstants.h"
 #import "Product.h"
 #import "ProductDetailViewController.h"
 #import "ProductDetailViewModel.h"
+#import <os/log.h>
+
+static os_log_t ProductDetailCoordinatorLog(void) {
+  static os_log_t log = nil;
+  static dispatch_once_t onceToken;
+  dispatch_once(&onceToken, ^{
+    log = os_log_create("com.bengidev.mvvmc", "ProductDetailCoordinator");
+  });
+  return log;
+}
 
 @interface ProductDetailCoordinator () <ProductDetailViewModelDelegate>
 @property(nonatomic, strong) ProductDetailViewModel *viewModel;
@@ -35,12 +46,12 @@
 
 - (void)start {
   if (!self.product) {
-    NSLog(@"[ProductDetailCoordinator] ERROR: No product set");
+    os_log_error(ProductDetailCoordinatorLog(), "ERROR: No product set");
     return;
   }
 
-  NSLog(@"[ProductDetailCoordinator] Starting detail flow for: %@",
-        self.product.productId);
+  os_log_info(ProductDetailCoordinatorLog(),
+              "Starting detail flow for: %{public}@", self.product.productId);
 
   // Create ViewModel
   self.viewModel =
@@ -60,8 +71,9 @@
 #pragma mark - Navigation
 
 - (void)showReviews {
-  NSLog(@"[ProductDetailCoordinator] Showing reviews for product: %@",
-        self.product.productId);
+  os_log_info(ProductDetailCoordinatorLog(),
+              "Showing reviews for product: %{public}@",
+              self.product.productId);
 
   // Create a simple reviews view controller
   UIViewController *reviewsVC = [[UIViewController alloc] init];
@@ -76,8 +88,9 @@
                        (long)self.product.reviewCount, self.product.rating];
   label.numberOfLines = 0;
   label.textAlignment = NSTextAlignmentCenter;
-  label.font = [UIFont systemFontOfSize:20];
+  label.font = [UIFont systemFontOfSize:kPaddingLarge];
   label.translatesAutoresizingMaskIntoConstraints = NO;
+  label.accessibilityIdentifier = @"reviewsInfoLabel";
   [reviewsVC.view addSubview:label];
 
   [NSLayoutConstraint activateConstraints:@[
@@ -99,15 +112,19 @@
   [alert addAction:[UIAlertAction actionWithTitle:@"OK"
                                             style:UIAlertActionStyleDefault
                                           handler:nil]];
-  [alert
-      addAction:
-          [UIAlertAction
-              actionWithTitle:@"View Cart"
-                        style:UIAlertActionStyleDefault
-                      handler:^(UIAlertAction *action) {
-                        // Would navigate to cart here
-                        NSLog(@"[ProductDetailCoordinator] Navigate to cart");
-                      }]];
+
+  __weak typeof(self) weakSelf = self;
+  [alert addAction:[UIAlertAction
+                       actionWithTitle:@"View Cart"
+                                 style:UIAlertActionStyleDefault
+                               handler:^(UIAlertAction *action) {
+                                 __strong typeof(weakSelf) strongSelf =
+                                     weakSelf;
+                                 if (!strongSelf)
+                                   return;
+                                 os_log_info(ProductDetailCoordinatorLog(),
+                                             "Navigate to cart requested");
+                               }]];
 
   [self.navigationController presentViewController:alert
                                           animated:YES
@@ -141,7 +158,8 @@
 }
 
 - (void)handleRoute:(DeepLinkRoute *)route {
-  NSLog(@"[ProductDetailCoordinator] Handling route: %@", route);
+  os_log_info(ProductDetailCoordinatorLog(), "Handling route: %{public}@",
+              [route routeTypeString]);
 
   switch (route.type) {
   case DeepLinkRouteTypeProductReviews:
@@ -156,8 +174,8 @@
 #pragma mark - Debug
 
 - (void)dealloc {
-  NSLog(@"[ProductDetailCoordinator] dealloc - product: %@",
-        self.product.productId);
+  os_log_debug(ProductDetailCoordinatorLog(), "dealloc - product: %{public}@",
+               self.product.productId);
 }
 
 @end

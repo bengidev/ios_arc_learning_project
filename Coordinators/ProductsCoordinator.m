@@ -12,21 +12,54 @@
 #import "ProductDetailCoordinator.h"
 #import "ProductListViewController.h"
 #import "ProductListViewModel.h"
+#import "ProductService.h"
+#import "ProductServiceProtocol.h"
+#import <os/log.h>
+
+static os_log_t ProductsCoordinatorLog(void) {
+  static os_log_t log = nil;
+  static dispatch_once_t onceToken;
+  dispatch_once(&onceToken, ^{
+    log = os_log_create("com.bengidev.mvvmc", "ProductsCoordinator");
+  });
+  return log;
+}
 
 @interface ProductsCoordinator () <ProductListViewModelDelegate>
 @property(nonatomic, strong) ProductListViewModel *viewModel;
 @property(nonatomic, weak) ProductListViewController *listViewController;
+@property(nonatomic, strong) id<ProductServiceProtocol> productService;
 @end
 
 @implementation ProductsCoordinator
 
+#pragma mark - Initialization
+
+- (instancetype)initWithNavigationController:
+    (UINavigationController *)navigationController {
+  // Use default service for backward compatibility
+  return [self initWithNavigationController:navigationController
+                             productService:[ProductService defaultService]];
+}
+
+- (instancetype)
+    initWithNavigationController:(UINavigationController *)navigationController
+                  productService:(id<ProductServiceProtocol>)productService {
+  self = [super initWithNavigationController:navigationController];
+  if (self) {
+    _productService = productService;
+  }
+  return self;
+}
+
 #pragma mark - Lifecycle
 
 - (void)start {
-  NSLog(@"[ProductsCoordinator] Starting products flow");
+  os_log_info(ProductsCoordinatorLog(), "Starting products flow");
 
-  // Create ViewModel
-  self.viewModel = [[ProductListViewModel alloc] init];
+  // Create ViewModel with injected service
+  self.viewModel =
+      [[ProductListViewModel alloc] initWithProductService:self.productService];
   self.viewModel.delegate =
       self; // Weak reference in ViewModel prevents retain cycle
 
@@ -45,14 +78,14 @@
 #pragma mark - Navigation
 
 - (void)showProductDetail:(Product *)product {
-  NSLog(@"[ProductsCoordinator] Showing detail for product: %@",
-        product.productId);
+  os_log_info(ProductsCoordinatorLog(),
+              "Showing detail for product: %{public}@", product.productId);
 
   // Create child coordinator
   ProductDetailCoordinator *detailCoordinator =
       [[ProductDetailCoordinator alloc]
-          initWithNavigationController:self.navigationController];
-  detailCoordinator.product = product;
+          initWithNavigationController:self.navigationController
+                               product:product];
 
   // Add and start child
   [self addChildCoordinator:detailCoordinator];
@@ -69,16 +102,30 @@
     }
   }
 
-  // If not found, try sample data
+  // If not found, fetch from service
   if (!product) {
-    product = [Product sampleProductWithId:productId];
+    os_log_info(ProductsCoordinatorLog(),
+                "Product %{public}@ not in cache, fetching...", productId);
+
+    __weak typeof(self) weakSelf = self;
+    [self.productService
+        fetchProductWithId:productId
+                completion:^(Product *fetchedProduct, NSError *error) {
+                  __strong typeof(weakSelf) strongSelf = weakSelf;
+                  if (!strongSelf)
+                    return;
+
+                  if (fetchedProduct) {
+                    [strongSelf showProductDetail:fetchedProduct];
+                  } else {
+                    os_log_error(ProductsCoordinatorLog(),
+                                 "Product not found: %{public}@", productId);
+                  }
+                }];
+    return;
   }
 
-  if (product) {
-    [self showProductDetail:product];
-  } else {
-    NSLog(@"[ProductsCoordinator] Product not found: %@", productId);
-  }
+  [self showProductDetail:product];
 }
 
 #pragma mark - ProductListViewModelDelegate
@@ -89,8 +136,8 @@
 }
 
 - (void)viewModelDidRefreshProducts:(ProductListViewModel *)viewModel {
-  NSLog(@"[ProductsCoordinator] Products refreshed, count: %ld",
-        (long)viewModel.products.count);
+  os_log_info(ProductsCoordinatorLog(), "Products refreshed, count: %lu",
+              (unsigned long)viewModel.products.count);
 }
 
 #pragma mark - DeepLinkable
@@ -107,7 +154,8 @@
 }
 
 - (void)handleRoute:(DeepLinkRoute *)route {
-  NSLog(@"[ProductsCoordinator] Handling route: %@", route);
+  os_log_info(ProductsCoordinatorLog(), "Handling route: %{public}@",
+              [route routeTypeString]);
 
   switch (route.type) {
   case DeepLinkRouteTypeProductList:
@@ -154,7 +202,7 @@
 #pragma mark - Debug
 
 - (void)dealloc {
-  NSLog(@"[ProductsCoordinator] dealloc");
+  os_log_debug(ProductsCoordinatorLog(), "dealloc");
 }
 
 @end

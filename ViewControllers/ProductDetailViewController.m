@@ -7,7 +7,18 @@
 //
 
 #import "ProductDetailViewController.h"
+#import "DesignConstants.h"
 #import "ProductDetailViewModel.h"
+#import <os/log.h>
+
+static os_log_t ProductDetailViewControllerLog(void) {
+  static os_log_t log = nil;
+  static dispatch_once_t onceToken;
+  dispatch_once(&onceToken, ^{
+    log = os_log_create("com.bengidev.mvvmc", "ProductDetailViewController");
+  });
+  return log;
+}
 
 @interface ProductDetailViewController ()
 @property(nonatomic, strong) UIScrollView *scrollView;
@@ -38,6 +49,7 @@
   [super viewDidLoad];
 
   [self setupUI];
+  [self setupAccessibility];
   [self bindViewModel];
 }
 
@@ -53,7 +65,7 @@
   // StackView for layout
   self.stackView = [[UIStackView alloc] init];
   self.stackView.axis = UILayoutConstraintAxisVertical;
-  self.stackView.spacing = 16;
+  self.stackView.spacing = kPaddingMedium;
   self.stackView.alignment = UIStackViewAlignmentFill;
   self.stackView.translatesAutoresizingMaskIntoConstraints = NO;
   [self.scrollView addSubview:self.stackView];
@@ -107,8 +119,7 @@
   self.addToCartButton.backgroundColor = [UIColor systemBlueColor];
   [self.addToCartButton setTitleColor:[UIColor whiteColor]
                              forState:UIControlStateNormal];
-  self.addToCartButton.layer.cornerRadius = 10;
-  self.addToCartButton.contentEdgeInsets = UIEdgeInsetsMake(12, 24, 12, 24);
+  self.addToCartButton.layer.cornerRadius = kCornerRadiusLarge;
   [self.addToCartButton addTarget:self
                            action:@selector(addToCartButtonTapped)
                  forControlEvents:UIControlEventTouchUpInside];
@@ -126,22 +137,36 @@
         constraintEqualToAnchor:safeArea.bottomAnchor],
 
     [self.stackView.topAnchor constraintEqualToAnchor:self.scrollView.topAnchor
-                                             constant:20],
+                                             constant:kPaddingLarge],
     [self.stackView.leadingAnchor
         constraintEqualToAnchor:self.scrollView.leadingAnchor
-                       constant:20],
+                       constant:kPaddingLarge],
     [self.stackView.trailingAnchor
         constraintEqualToAnchor:self.scrollView.trailingAnchor
-                       constant:-20],
+                       constant:-kPaddingLarge],
     [self.stackView.bottomAnchor
         constraintEqualToAnchor:self.scrollView.bottomAnchor
-                       constant:-20],
+                       constant:-kPaddingLarge],
     [self.stackView.widthAnchor
         constraintEqualToAnchor:self.scrollView.widthAnchor
-                       constant:-40],
+                       constant:-kPaddingLarge * 2],
 
-    [self.addToCartButton.heightAnchor constraintEqualToConstant:50]
+    [self.addToCartButton.heightAnchor
+        constraintEqualToConstant:kButtonHeightLarge]
   ]];
+}
+
+- (void)setupAccessibility {
+  self.nameLabel.accessibilityIdentifier = kAccessibilityProductNameLabel;
+  self.priceLabel.accessibilityIdentifier = kAccessibilityProductPriceLabel;
+  self.ratingLabel.accessibilityIdentifier = kAccessibilityProductRatingLabel;
+  self.descriptionLabel.accessibilityIdentifier =
+      kAccessibilityProductDescriptionLabel;
+  self.reviewsButton.accessibilityIdentifier = kAccessibilityReviewsButton;
+  self.addToCartButton.accessibilityIdentifier = kAccessibilityAddToCartButton;
+
+  self.reviewsButton.accessibilityLabel = @"See product reviews";
+  self.addToCartButton.accessibilityLabel = @"Add product to cart";
 }
 
 - (void)bindViewModel {
@@ -151,22 +176,29 @@
       [NSString stringWithFormat:@"%@ • %@", self.viewModel.ratingString,
                                  self.viewModel.reviewCountString];
   self.descriptionLabel.text = self.viewModel.productDescription;
+
+  // Accessibility labels
+  self.nameLabel.accessibilityLabel = self.viewModel.productName;
+  self.priceLabel.accessibilityLabel =
+      [NSString stringWithFormat:@"Price: %@", self.viewModel.formattedPrice];
 }
 
 #pragma mark - Actions
 
 - (void)reviewsButtonTapped {
+  os_log_info(ProductDetailViewControllerLog(), "Reviews button tapped");
   [self.viewModel showReviews];
 }
 
 - (void)addToCartButtonTapped {
+  os_log_info(ProductDetailViewControllerLog(), "Add to cart button tapped");
   [self.viewModel addToCart];
 }
 
 #pragma mark - Debug
 
 - (void)dealloc {
-  NSLog(@"[ProductDetailViewController] dealloc");
+  os_log_debug(ProductDetailViewControllerLog(), "dealloc");
 }
 
 @end

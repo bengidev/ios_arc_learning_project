@@ -66,6 +66,9 @@ NS_ASSUME_NONNULL_BEGIN
 /// Called when dismiss is requested
 @property(nonatomic, copy, nullable) void (^onDismissRequested)(void);
 
+/// Called when an error occurs
+@property(nonatomic, copy, nullable) void (^onError)(NSError *error);
+
 #pragma mark - Initialization
 
 - (instancetype)initWithProduct:(Product *)product;
